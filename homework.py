@@ -15,8 +15,6 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-FILENAME = os.path.join(os.path.expanduser('~'), __file__ + '.log')
-FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -60,20 +58,28 @@ UNEXPECTED_STATUS_MESSAGE = 'Неожиданный статус проверк�
 REVIEW_STATUS = (
     'Изменился статус проверки работы "{0}". {1}')
 
+# Сообщения для функции main
+BOT_START_MESSAGE = 'Проверка запущена {__name__}'
+PROGRAMM_FAILURE_ERROR_MESSAGE = 'Сбой в работе программы: {error}'
+
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FILENAME = os.path.join(BASE_DIR, 'homework_result.log')
+FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(
     level=logging.DEBUG,
     format=FORMAT,
     handlers=[
-        logging.FileHandler(FILENAME, encoding='UTF-8', mode='w'),
-        logging.StreamHandler(sys.stdout)]
+        logging.FileHandler(FILENAME, encoding='UTF-8', mode='w')]
 )
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(handler)
 
 
 def check_tokens() -> bool:
@@ -164,26 +170,23 @@ def parse_status(homework: dict) -> str:
 
 def main():
     """Основная логика работы бота."""
-    logger.info(f'Проверка запущена {__name__}')
+    logger.info(BOT_START_MESSAGE)
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
-    previous_homework = None
+    timestamp = int(time.time()) - 30 * 24 * 60 * 60
     previous_error = None
     while True:
         try:
             response = get_api_answer(timestamp)
-            homework = check_response(response)
-            if homework and homework != previous_homework:
-                message = parse_status(homework[0])
-                send_message(bot, message)
-                previous_homework = homework
-                timestamp = response['current_date']
+            homeworks = check_response(response)
+            if homeworks and send_message(bot, parse_status(homeworks[0])):
+                timestamp = response.get(
+                    'current_date', timestamp)
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
+            message = PROGRAMM_FAILURE_ERROR_MESSAGE.format(
+                error=error)
             logger.error(message)
-            if error != previous_error:
-                send_message(bot, message)
+            if message != previous_error and send_message(bot, message):
                 previous_error = error
         finally:
             time.sleep(RETRY_PERIOD)
