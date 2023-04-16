@@ -37,11 +37,28 @@ API_ANSWER_LOG = (
 ERROR_ANSWER = (
     'Ошибка подключения {url}, {headers}, c значениями {params}, '
     'ошибка: {error}')
-FAILED_REQUEST = ('Получен неожиданный статус API - {status}, {url}, '
-                  '{headers}, c значениями {params}')
-SERVER_FAILURES = (
+REQUEST_FAILED_MESSAGE = (
+    'Получен неожиданный статус API - {status}, {url}, '
+    '{headers}, c значениями {params}')
+SERVER_FAILURE_MESSAGE = (
     'Ошибка сервера: {error} - {value}. {url}, {headers}, {params}')
 
+# Сообщения для функции check_response
+CHECK_RESPONSE_START_MESSAGE = 'Проверка соответствия данных'
+NOT_DICT_MESSAGE = (
+    'Ожидаемый тип данных - словарь, но получен (тип {type_name})')
+KEY_ERROR_MESSAGE = 'Ключ homeworks не найден'
+NOT_LIST_MESSAGE = (
+    'Ожидаемый тип данных - список, но получен (тип {type_name})')
+
+# Сообщения для функции parse_status
+PARSE_STATUS_START_MESSAGE = 'Извлечение статуса домашней работы'
+EMPTY_HOMEWORK_DICT_MESSAGE = 'Словарь homework пуст'
+MISSING_HOMEWORK_NAME_MESSAGE = 'Отсутствует ключhomework_name'
+MISSING_DOCUMENTED_STATUS_MESSAGE = 'Отсутствует документированный статус'
+UNEXPECTED_STATUS_MESSAGE = 'Неожиданный статус проверки {status}'
+REVIEW_STATUS = (
+    'Изменился статус проверки работы "{0}". {1}')
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -101,54 +118,48 @@ def get_api_answer(timestamp: int) -> dict:
             ERROR_ANSWER.format(error=error, **params))
     if response.status_code != 200:
         raise RuntimeError(
-            FAILED_REQUEST.format(
+            REQUEST_FAILED_MESSAGE.format(
                 status=response.status_code, **params))
     data = response.json()
     for error in ('code', 'error'):
         if error in data:
-            raise RuntimeError(SERVER_FAILURES.format(
-                error=error, value=data[error], **params))
+            raise RuntimeError(
+                SERVER_FAILURE_MESSAGE.format(
+                    error=error, value=data[error], **params))
     return data
 
 
 def check_response(response: dict) -> list:
     """Проверяет ответ API на соответствие документации."""
-    logger.debug('Проверка соответствия данных')
+    logger.debug(CHECK_RESPONSE_START_MESSAGE)
     if not isinstance(response, dict):
-        logger.error('Тип данных отличается от ожидаемого')
-        raise TypeError(
-            f'Ожидаемый тип данных - словарь, получен {type(response)}')
+        raise TypeError(NOT_DICT_MESSAGE.format(
+            type_name=type(response)))
     if 'homeworks' not in response:
-        logger.error('Отсутствует ключ homeworks')
-        raise KeyError('Ключ homeworks не найден')
-    if 'current_date' not in response:
-        logger.error('Отсутствует ключ current_date')
-        raise KeyError('Ключ homeworks не найден')
-    if not isinstance(response['homeworks'], list):
-        logger.error('Тип данных отличается от ожидаемого')
-        raise TypeError('Ожидаемый тип данных - список')
-    return response['homeworks']
+        raise KeyError(KEY_ERROR_MESSAGE)
+    homeworks = response['homeworks']
+    if not isinstance(homeworks, list):
+        raise TypeError(NOT_LIST_MESSAGE.format(
+            type_name=type(homeworks)))
+    return homeworks
 
 
 def parse_status(homework: dict) -> str:
     """Извлекает из информации о домашней работе статус этой работы."""
-    logger.debug('Извлечение статуса домашней работы')
+    logger.debug(PARSE_STATUS_START_MESSAGE)
     if not homework:
-        logger.error('Словарь homework пуст')
-        raise KeyError('Словарь homework пуст')
+        raise KeyError(EMPTY_HOMEWORK_DICT_MESSAGE)
     if 'homework_name' not in homework:
-        logger.error('Отсутствует ключ homework_name')
-        raise KeyError('Отсутствует ключhomework_name')
+        raise KeyError(MISSING_HOMEWORK_NAME_MESSAGE)
     if 'status' not in homework:
-        logger.error('Отсутствует документированный статус')
-        raise KeyError('Отсутствует документированный статус')
+        raise KeyError(MISSING_DOCUMENTED_STATUS_MESSAGE)
     status = homework.get('status')
     homework_name = homework.get('homework_name')
     if status not in HOMEWORK_VERDICTS:
-        raise KeyError(f'{status} отсутствует в словаре homework_verdicts')
-    verdict = HOMEWORK_VERDICTS[status]
-    logger.debug('Статус извлечен')
-    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+        raise ValueError(
+            UNEXPECTED_STATUS_MESSAGE.format(
+                status=status))
+    return (REVIEW_STATUS.format(homework_name, HOMEWORK_VERDICTS[status]))
 
 
 def main():
