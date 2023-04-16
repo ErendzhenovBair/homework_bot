@@ -21,6 +21,27 @@ RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
+# Сообщения для функции check_tokens
+START_MESSAGE_CHECK_TOKENS = 'Проверка переменных окружения'
+END_MESSAGE_CHECK_TOKENS = 'Все переменные из окружения доступны'
+ERROR_MESSAGE_TOKENS = 'Переменная окружения {token} не найдена'
+
+# Сообщения для функции send_message
+MESSAGE_SEND_START = 'Начало отправки'
+MESSAGE_SEND_SUCCESSFULLY = 'Сообщение: {message} отправлено'
+MESSAGE_SEND_ERROR = 'Не удалось отправить сообщение: {message}. {error}'
+
+# Сообщения для функции get_api_answer
+API_ANSWER_LOG = (
+    'Начало запроса к {url}, {headers}, c значениями {params}')
+ERROR_ANSWER = (
+    'Ошибка подключения {url}, {headers}, c значениями {params}, '
+    'ошибка: {error}')
+SERVER_FAILURES = (
+    'Ошибка сервера: {error} - {value}\n'
+    '{url}, {headers}, {params}.'
+)
+
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -40,45 +61,51 @@ logger = logging.getLogger(__name__)
 
 def check_tokens() -> bool:
     """Проверяет доступность переменных окружения."""
-    logger.debug('Проверка переменных окружения')
+    logger.debug(START_MESSAGE_CHECK_TOKENS)
     tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
     for token in tokens:
         if not token:
-            logger.critical(f'Переменная окружения {token} не найдена')
+            logger.critical(ERROR_MESSAGE_TOKENS.format(token=token))
             raise ValueError(f'Переменная окружения {token} не найдена')
-    logger.debug('Все переменные из окружения доступны')
+    logger.debug(END_MESSAGE_CHECK_TOKENS)
     return True
 
 
 def send_message(bot: Bot, message: str):
     """Отправляет сообщения в чат, определяемый переменной окружения."""
     try:
-        logger.debug('Начало отправки')
+        logger.debug(MESSAGE_SEND_START)
         bot.send_message(
             TELEGRAM_CHAT_ID,
             message)
-        logger.debug(f'Сообщение {message} отправлено')
+        logger.debug(MESSAGE_SEND_SUCCESSFULLY)
     except Exception as error:
-        logger.error('Не удалось отправить сообщение')
-        raise error('Не удалось отправить сообщение')
+        logger.error(MESSAGE_SEND_SUCCESSFULLY.format(
+            message=message, error=error), exc_info=True)
+        raise ValueError(MESSAGE_SEND_SUCCESSFULLY.format(
+            message=message, error=error))
 
 
 def get_api_answer(timestamp: int) -> dict:
     """Делает запрос к эндпоинту API-сервиса."""
-    logger.debug('Отправка запроса к эндпоинту')
-    payload = {'from_date': timestamp}
+    params = dict(
+        url=ENDPOINT,
+        headers=HEADERS,
+        params={'from_date': timestamp}
+    )
+    logger.debug(API_ANSWER_LOG.format(**params))
     try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
-        if response.status_code != 200:
-            raise Exception(
-                f'Ошибка запроса API: получен статус {response.status_code}')
-        data = response.json()
-        if 'error' in data and data['error'] == 'invalid_token':
-            raise ValueError('Невалидный токен')
+        response = requests.get(**params)
     except RequestException as error:
-        logger.error(f'Ошибка при запросе к API: {error}')
-        raise error(f'Ошибка при запросе к API: {error}')
-    logger.debug(f'Ответ API получен {data}')
+        raise ConnectionError(
+            ERROR_ANSWER.format(error=error, **params))
+    data = response.json()
+    for error in ('code', 'error'):
+        if error in data:
+            raise RuntimeError(SERVER_FAILURES.format(
+                error=error,
+                value=data[error],
+                **params))
     return data
 
 
