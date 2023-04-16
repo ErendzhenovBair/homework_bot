@@ -37,10 +37,10 @@ API_ANSWER_LOG = (
 ERROR_ANSWER = (
     'Ошибка подключения {url}, {headers}, c значениями {params}, '
     'ошибка: {error}')
+FAILED_REQUEST = ('Получен неожиданный статус API - {status}, {url}, '
+                  '{headers}, c значениями {params}')
 SERVER_FAILURES = (
-    'Ошибка сервера: {error} - {value}\n'
-    '{url}, {headers}, {params}.'
-)
+    'Ошибка сервера: {error} - {value}. {url}, {headers}, {params}')
 
 
 HOMEWORK_VERDICTS = {
@@ -99,13 +99,15 @@ def get_api_answer(timestamp: int) -> dict:
     except RequestException as error:
         raise ConnectionError(
             ERROR_ANSWER.format(error=error, **params))
+    if response.status_code != 200:
+        raise RuntimeError(
+            FAILED_REQUEST.format(
+                status=response.status_code, **params))
     data = response.json()
     for error in ('code', 'error'):
         if error in data:
             raise RuntimeError(SERVER_FAILURES.format(
-                error=error,
-                value=data[error],
-                **params))
+                error=error, value=data[error], **params))
     return data
 
 
