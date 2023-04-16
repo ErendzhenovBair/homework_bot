@@ -173,7 +173,7 @@ def main():
     logger.info(BOT_START_MESSAGE)
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time()) - 30 * 24 * 60 * 60
+    timestamp = int(time.time())
     previous_error = None
     while True:
         try:
