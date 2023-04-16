@@ -3,12 +3,11 @@ import os
 import sys
 import time
 
+from dotenv import load_dotenv
 import requests
 from requests.exceptions import RequestException
 import telegram
 from telegram import Bot
-
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -16,6 +15,8 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
+FILENAME = os.path.join(os.path.expanduser('~'), __file__ + '.log')
+FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -29,8 +30,10 @@ HOMEWORK_VERDICTS = {
 
 logging.basicConfig(
     level=logging.DEBUG,
-    filename='homework_result.log',
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format=FORMAT,
+    handlers=[
+        logging.FileHandler(FILENAME, encoding='UTF-8', mode='w'),
+        logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
