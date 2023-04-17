@@ -67,10 +67,6 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FILENAME = os.path.join(BASE_DIR, 'homework_result.log')
-FORMAT = (
-    '%(asctime)s - %(levelname)s - %(funcName)s - %(lineno)d - %(message)s')
 TOKENS_LIST = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
 
 logger = logging.getLogger(__name__)
@@ -166,33 +162,48 @@ def main():
     logger.info(BOT_START_MESSAGE)
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
-    previous_error = None
+    timestamp = int(time.time()) - 30 * 24 * 60 * 60
+    last_message = ''
     while True:
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
             if homeworks:
-                send_message(bot, parse_status(homeworks[0]))
-                timestamp = response.get(
-                    'current_date', timestamp)
+                message = parse_status(homeworks[0])
+                if message != last_message:
+                    send_message(bot, message)
+                    last_message = message
+                    timestamp = response.get(
+                        'current_date', timestamp
+                    )
+                    previous_error = None
+            else:
+                timestamp = response.get('current_date', timestamp)
         except Exception as error:
             message = PROGRAMM_FAILURE_ERROR_MESSAGE.format(
                 error=error)
             logger.exception(message)
             if message != previous_error:
                 send_message(bot, message)
-                previous_error = error
+                previous_error = message
         finally:
             time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    FILENAME = os.path.join(BASE_DIR, 'homework_result.log')
     logging.basicConfig(
         level=logging.DEBUG,
-        format=FORMAT,
+        format=(
+            '%(asctime)s - %(levelname)s -'
+            '%(funcName)s - %(lineno)d - %(message)s'
+        ),
         handlers=[
             logging.FileHandler(
-                FILENAME, encoding='UTF-8', mode='w'),
-            logging.StreamHandler(sys.stdout)])
+                FILENAME, encoding='UTF-8', mode='w'
+            ),
+            logging.StreamHandler(sys.stdout)
+        ],
+    )
     main()
