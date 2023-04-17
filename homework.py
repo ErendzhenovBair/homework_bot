@@ -70,16 +70,8 @@ HOMEWORK_VERDICTS = {
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FILENAME = os.path.join(BASE_DIR, 'homework_result.log')
-FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
-logging.basicConfig(
-    level=logging.DEBUG,
-    format=FORMAT,
-    handlers=[
-        logging.FileHandler(FILENAME, encoding='UTF-8', mode='w')]
-)
-logger = logging.getLogger(__name__)
-handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(handler)
+FORMAT = (
+    '%(asctime)s - %(levelname)s - %(funcName)s - %(lineno)d - %(message)s')
 
 
 def check_tokens() -> bool:
@@ -173,7 +165,7 @@ def main():
     logger.info(BOT_START_MESSAGE)
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    timestamp = int(time.time()) - 2629743
     previous_error = None
     while True:
         try:
@@ -193,4 +185,12 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format=FORMAT,
+        handlers=[
+            logging.FileHandler(
+                FILENAME, encoding='UTF-8', mode='w'),
+            logging.StreamHandler(sys.stdout)])
+    logger = logging.getLogger(__name__)
     main()
