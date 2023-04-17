@@ -28,8 +28,6 @@ ERROR_MESSAGE_TOKENS = 'Переменная окружения {0} не най�
 MESSAGE_SEND_START = 'Начало отправки'
 MESSAGE_SEND_SUCCESSFULLY = 'Сообщение: {message} отправлено'
 MESSAGE_SEND_ERROR = 'Не удалось отправить сообщение: {message}. {error}'
-ERROR_MESSAGE_MISSING_ENV_VARIABLE = (
-    'Не удалось отправить сообщение: отсутствует {non_exists_variables}')
 
 # Сообщения для функции get_api_answer
 API_ANSWER_LOG = (
@@ -53,7 +51,6 @@ NOT_LIST_MESSAGE = (
 
 # Сообщения для функции parse_status
 PARSE_STATUS_START_MESSAGE = 'Извлечение статуса домашней работы'
-EMPTY_HOMEWORK_DICT_MESSAGE = 'Словарь homework пуст'
 MISSING_HOMEWORK_NAME_MESSAGE = 'Отсутствует ключhomework_name'
 MISSING_DOCUMENTED_STATUS_MESSAGE = 'Отсутствует документированный статус'
 UNEXPECTED_STATUS_MESSAGE = 'Неожиданный статус проверки {status}'
@@ -151,19 +148,17 @@ def check_response(response: dict) -> list:
 def parse_status(homework: dict) -> str:
     """Извлекает из информации о домашней работе статус этой работы."""
     logger.debug(PARSE_STATUS_START_MESSAGE)
-    if not homework:
-        raise KeyError(EMPTY_HOMEWORK_DICT_MESSAGE)
     if 'homework_name' not in homework:
         raise KeyError(MISSING_HOMEWORK_NAME_MESSAGE)
     if 'status' not in homework:
         raise KeyError(MISSING_DOCUMENTED_STATUS_MESSAGE)
     status = homework.get('status')
-    homework_name = homework.get('homework_name')
     if status not in HOMEWORK_VERDICTS:
         raise ValueError(
             UNEXPECTED_STATUS_MESSAGE.format(
                 status=status))
-    return (REVIEW_STATUS.format(homework_name, HOMEWORK_VERDICTS[status]))
+    return REVIEW_STATUS.format(
+        homework.get('homework_name'), HOMEWORK_VERDICTS[status])
 
 
 def main():
@@ -171,20 +166,22 @@ def main():
     logger.info(BOT_START_MESSAGE)
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time()) - 2629743
+    timestamp = int(time.time())
     previous_error = None
     while True:
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
-            if homeworks and send_message(bot, parse_status(homeworks[0])):
+            if homeworks:
+                send_message(bot, parse_status(homeworks[0]))
                 timestamp = response.get(
                     'current_date', timestamp)
         except Exception as error:
             message = PROGRAMM_FAILURE_ERROR_MESSAGE.format(
                 error=error)
-            logger.error(message)
-            if message != previous_error and send_message(bot, message):
+            logger.exception(message)
+            if message != previous_error:
+                send_message(bot, message)
                 previous_error = error
         finally:
             time.sleep(RETRY_PERIOD)
