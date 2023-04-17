@@ -60,6 +60,9 @@ REVIEW_STATUS = (
 # Сообщения для функции main
 BOT_START_MESSAGE = 'Проверка запущена {__name__}'
 PROGRAMM_FAILURE_ERROR_MESSAGE = 'Сбой в работе программы: {error}'
+NO_HOMEWORK_MESSAGE = 'Домашние работы отсутствуют'
+HOMEWORK_STATUS_NOT_CHANGED = 'Статус домашней работы не изменился'
+MESSAGE_NOT_SENT_ERROR = 'Повторение последней ошибки'
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -162,30 +165,28 @@ def main():
     logger.info(BOT_START_MESSAGE)
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
-    last_message = ''
+    timestamp = int(time.time()) - 30 * 24 * 60 * 60
+    last_message = None
     while True:
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
             if homeworks:
                 message = parse_status(homeworks[0])
-                if message != last_message:
-                    send_message(bot, message)
-                    last_message = message
-                    timestamp = response.get(
-                        'current_date', timestamp
-                    )
-                    previous_error = None
             else:
-                timestamp = response.get('current_date', timestamp)
-        except Exception as error:
-            message = PROGRAMM_FAILURE_ERROR_MESSAGE.format(
-                error=error)
-            logger.exception(message)
-            if message != previous_error:
+                logger.debug(NO_HOMEWORK_MESSAGE)
+            if message != last_message:
                 send_message(bot, message)
-                previous_error = message
+                last_message = message
+                timestamp = response.get('current_date', timestamp)
+            else:
+                logger.debug(HOMEWORK_STATUS_NOT_CHANGED)
+        except Exception as error:
+            message = PROGRAMM_FAILURE_ERROR_MESSAGE.format(error=error)
+            logger.exception(message)
+            if message != last_message:
+                send_message(bot, message)
+                last_message = message
         finally:
             time.sleep(RETRY_PERIOD)
 
