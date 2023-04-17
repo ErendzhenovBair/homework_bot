@@ -22,12 +22,14 @@ HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 # Сообщения для функции check_tokens
 START_MESSAGE_CHECK_TOKENS = 'Проверка переменных окружения'
 END_MESSAGE_CHECK_TOKENS = 'Все переменные из окружения доступны'
-ERROR_MESSAGE_TOKENS = 'Переменная окружения {token} не найдена'
+ERROR_MESSAGE_TOKENS = 'Переменная окружения {0} не найдена'
 
 # Сообщения для функции send_message
 MESSAGE_SEND_START = 'Начало отправки'
 MESSAGE_SEND_SUCCESSFULLY = 'Сообщение: {message} отправлено'
 MESSAGE_SEND_ERROR = 'Не удалось отправить сообщение: {message}. {error}'
+ERROR_MESSAGE_MISSING_ENV_VARIABLE = (
+    'Не удалось отправить сообщение: отсутствует {non_exists_variables}')
 
 # Сообщения для функции get_api_answer
 API_ANSWER_LOG = (
@@ -72,32 +74,36 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FILENAME = os.path.join(BASE_DIR, 'homework_result.log')
 FORMAT = (
     '%(asctime)s - %(levelname)s - %(funcName)s - %(lineno)d - %(message)s')
+TOKENS_LIST = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
+
+logger = logging.getLogger(__name__)
 
 
 def check_tokens() -> bool:
     """Проверяет доступность переменных окружения."""
     logger.debug(START_MESSAGE_CHECK_TOKENS)
-    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    for token in tokens:
-        if not token:
-            logger.critical(ERROR_MESSAGE_TOKENS.format(token=token))
-            raise ValueError(f'Переменная окружения {token} не найдена')
+    non_exists_variables = [
+        token for token in TOKENS_LIST
+        if globals()[token] == '' or globals()[token] is None
+    ]
+    if non_exists_variables:
+        logger.critical(ERROR_MESSAGE_TOKENS.format(non_exists_variables))
+        raise ValueError(
+            ERROR_MESSAGE_TOKENS.format(non_exists_variables))
     logger.debug(END_MESSAGE_CHECK_TOKENS)
-    return True
 
 
 def send_message(bot: Bot, message: str):
     """Отправляет сообщения в чат, определяемый переменной окружения."""
+    logger.debug(MESSAGE_SEND_START)
     try:
-        logger.debug(MESSAGE_SEND_START)
         bot.send_message(
-            TELEGRAM_CHAT_ID,
-            message)
-        logger.debug(MESSAGE_SEND_SUCCESSFULLY)
-    except Exception as error:
-        logger.error(MESSAGE_SEND_SUCCESSFULLY.format(
-            message=message, error=error), exc_info=True)
-        raise ValueError(MESSAGE_SEND_SUCCESSFULLY.format(
+            TELEGRAM_CHAT_ID, message)
+        logger.debug(
+            MESSAGE_SEND_SUCCESSFULLY.format(
+                message=message))
+    except telegram.error.TelegramError as error:
+        logger.exception(MESSAGE_SEND_ERROR.format(
             message=message, error=error))
 
 
@@ -192,5 +198,4 @@ if __name__ == '__main__':
             logging.FileHandler(
                 FILENAME, encoding='UTF-8', mode='w'),
             logging.StreamHandler(sys.stdout)])
-    logger = logging.getLogger(__name__)
     main()
