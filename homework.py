@@ -165,8 +165,8 @@ def main():
     logger.info(BOT_START_MESSAGE)
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time()) - 30 * 24 * 60 * 60
-    last_message = None
+    timestamp = int(time.time())
+    last_message = ''
     while True:
         try:
             response = get_api_answer(timestamp)
