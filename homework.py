@@ -89,7 +89,7 @@ def check_tokens() -> bool:
     logger.debug(END_MESSAGE_CHECK_TOKENS)
 
 
-def send_message(bot: Bot, message: str):
+def send_message(bot: Bot, message: str) -> bool:
     """Отправляет сообщения в чат, определяемый переменной окружения."""
     logger.debug(MESSAGE_SEND_START)
     try:
@@ -98,9 +98,11 @@ def send_message(bot: Bot, message: str):
         logger.debug(
             MESSAGE_SEND_SUCCESSFULLY.format(
                 message=message))
+        return True
     except telegram.error.TelegramError as error:
         logger.exception(MESSAGE_SEND_ERROR.format(
             message=message, error=error))
+        return False
 
 
 def get_api_answer(timestamp: int) -> dict:
@@ -176,17 +178,17 @@ def main():
             else:
                 logger.debug(NO_HOMEWORK_MESSAGE)
             if message != last_message:
-                send_message(bot, message)
-                last_message = message
-                timestamp = response.get('current_date', timestamp)
+                if send_message(bot, message):
+                    last_message = message
+                    timestamp = response.get('current_date', timestamp)
             else:
                 logger.debug(HOMEWORK_STATUS_NOT_CHANGED)
         except Exception as error:
             message = PROGRAMM_FAILURE_ERROR_MESSAGE.format(error=error)
             logger.exception(message)
             if message != last_message:
-                send_message(bot, message)
-                last_message = message
+                if send_message(bot, message):
+                    last_message = message
         finally:
             time.sleep(RETRY_PERIOD)
 
